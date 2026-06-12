@@ -1,0 +1,38 @@
+name: "Guardian Build Facts"
+description: "Obtain facts about a build."
+inputs:
+  buildNumberOffset:
+    description: 'If set, will be added to the build number. Useful if wanting to continue counting from a previous build tool (e.g. TeamCity).'
+    required: false
+    default: '0'
+outputs:
+  branchName:
+    description: "The name of the branch being built, with 'refs/heads/' prefix removed. For example, 'feature/foo'."
+    value: ${{ steps.get-facts.outputs.branchName }}
+  buildNumber:
+    description: "The number of this build, optionally offset by the 'buildNumberOffset' input."
+    value: ${{ steps.get-facts.outputs.buildNumber }}
+  commitSha:
+    description: "The SHA of the commit being built."
+    value: ${{ steps.get-facts.outputs.commitSha }}
+runs:
+  using: "composite"
+  steps:
+    - name: Get build facts
+      id: get-facts
+      shell: bash
+      env:
+        RAW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref || 'unknown' }}
+        BUILD_NUMBER: ${{ github.run_number }}
+        BUILD_NUMBER_OFFSET: ${{ inputs.buildNumberOffset }}
+
+        # When invoked from `pull_request`, `github.sha` is not the latest commit of the feature branch. All other times, it is.
+        # See also https://github.com/orgs/community/discussions/26325.
+        COMMIT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      run: |
+        # Remove "refs/heads/" prefix
+        TRIMMED_BRANCH_NAME="${RAW_BRANCH_NAME#refs/heads/}"
+        
+        echo "branchName=${TRIMMED_BRANCH_NAME}" >> $GITHUB_OUTPUT
+        echo "buildNumber=$(( $BUILD_NUMBER + $BUILD_NUMBER_OFFSET ))" >> $GITHUB_OUTPUT
+        echo "commitSha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
